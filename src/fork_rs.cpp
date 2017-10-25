@@ -4,7 +4,16 @@
 @date March 13, 2017, @author Jonathan Appiagyei
 */
 
-#include "FORK_RS.hpp"
+// TODO: add instruction to set door line
+
+#include "fork_rs.hpp"
+
+using namespace cv;
+using namespace std;
+
+// for logging motion-triggered counts
+pthread_mutex_t log_lock;
+pthread_cond_t log_cond;
 
 // for unprocessed frames
 pthread_mutex_t frame_lock;
@@ -1586,21 +1595,24 @@ void display_accuracy_of_occupancy_estimation()
 int main(int argc, char** argv) {
     signal(SIGINT, signal_handler);
     
-    pthread_mutex_init(&im_lock, NULL);
-    pthread_cond_init(&im_cond, NULL);
+    pthread_mutex_init(&im_lock, nullptr);
+    pthread_cond_init(&im_cond, nullptr);
     
-    pthread_mutex_init(&frame_lock, NULL);
-    pthread_cond_init(&frame_cond, NULL);
+    pthread_mutex_init(&frame_lock, nullptr);
+    pthread_cond_init(&frame_cond, nullptr);
     
-    pthread_mutex_init(&poly_lock, NULL);
-    pthread_cond_init(&poly_cond, NULL);
+    pthread_mutex_init(&poly_lock, nullptr);
+    pthread_cond_init(&poly_cond, nullptr);
     
-    
+    if (log_data) {
+        pthread_mutex_init(&log_lock, nullptr);
+        pthread_cond_init(&log_cond, nullptr);
+    }
 //    pthread_create(&threads[0], NULL, &frame_capture_thread, NULL);
-    pthread_create(&threads[1], NULL, &process_frames, NULL);
+    pthread_create(&threads[1], nullptr, &process_frames, nullptr);
 
     if (!display_occupancy) {
-        pthread_join(threads[0], NULL);
+        pthread_join(threads[0], nullptr);
         exit(0);
     }
     

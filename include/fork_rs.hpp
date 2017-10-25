@@ -14,11 +14,6 @@
 #include <librealsense/rs.hpp>
 #include <signal.h>
 
-
-using namespace cv;
-using namespace std;
-
-
 #define PI 3.14159265359
 #define PAST_HORIZON_SIZE 15
 #define MAX_PEOPLE 25 // we are not tracking more than 25 people
@@ -47,6 +42,8 @@ bool enable_threading = false;
 bool print_debug_info = false;
 bool display_polys = false;
 bool decrease_fps = false;
+bool log_data = false;
+
 int fps_divisor = 6; // camera_fps / divisor;
 
 bool done_capturing = false;
@@ -97,10 +94,10 @@ int folder_location = 6;
 #define IMG_LOC  "/Users/PapaYaw/Documents/Bosch_Research/images/16_bit/%d.png"
 
 //string groundTruthFile = "/Users/Gladiator/Documents/workspace/kinect/FORK_NOBGS/src/headGT.csv";
-string groundTruthFile = "/Users/Apple/Desktop/Bosch/headGT.csv";
+std::string groundTruthFile = "/Users/Apple/Desktop/Bosch/headGT.csv";
 
 //string occGroundTruthFile = "/Users/Gladiator/Documents/workspace/kinect/FORK_NOBGS/src/occupancy_contour2.csv";
-string occGroundTruthFile = "/Users/Apple/Desktop/Bosch/occupancy.csv";
+std::string occGroundTruthFile = "/Users/Apple/Desktop/Bosch/occupancy.csv";
 
 
 
@@ -115,7 +112,7 @@ bool perform_background_subtraction = true; // if true, it will do background su
 int number_of_frames_for_background_determination = 10; //it uses the first 200 frames to determine the background...if someone is there, he should be out of there within this 200 frames
 int background_determination_threshold = 1500; //if the sum of histogram difference is less than 1500, then it is a background
 bool background_image_determined = false; // after the background image is determined, it will be set to true
-Mat background_image;   //it contains the background image after it is determined
+cv::Mat background_image;   //it contains the background image after it is determined
 
 ///////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////Human Detection General///////////////////////////////////////
@@ -171,8 +168,8 @@ int radius_extension = 5; // from the original radius of the head, we increment 
 //////////////////////////////////////////////////////////////////////////////////////
 
 // Accuracy computation for ROI within the rectangle defined by the following two points
-Point top_left(55,50);
-Point bottom_right(450,390); // (x1,y1) - left top vertex, (x2,y2) - right bottom vertex
+cv::Point top_left(55,50);
+cv::Point bottom_right(450,390); // (x1,y1) - left top vertex, (x2,y2) - right bottom vertex
 bool compute_precision_within_ROI = true; // Enables computation of precision and recall within the defined ROI
 
 
@@ -198,8 +195,8 @@ int door_y1 = 310; //310
 int door_x2 = 520; //370 minimal
 int door_y2 = 310; //310
 
-Point door1(door_x1, door_y1);
-Point door2(door_x2, door_y2);
+cv::Point door1(door_x1, door_y1);
+cv::Point door2(door_x2, door_y2);
 
 ///////////////////////////////////////////////////////////////////////////////////////
 /////////////Precision and Recall computation for head, shoulder detection/////////////
@@ -209,11 +206,11 @@ Point door2(door_x2, door_y2);
 bool writeCSVfile = false; // "True" if we want to write the detected heads in a CSV
 bool findAccuracy = false; // "True" if accuracy needs to be calculated
 
-ifstream grndTruth;
-ofstream allError;
-ofstream noHead;
-ofstream head;
-string temp_name;
+std::ifstream grndTruth;
+std::ofstream allError;
+std::ofstream noHead;
+std::ofstream head;
+std::string temp_name;
 
 
 int truePositive[4] = {0}; // It is a head and labeled as a head
