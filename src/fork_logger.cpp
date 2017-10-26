@@ -8,7 +8,6 @@
 
 #include "fork_logger.hpp"
 
-using namespace boost;
 using namespace cv;
 using namespace std;
 
@@ -25,12 +24,13 @@ namespace fork_logger {
     else
       _folder_name = folder_name;
     
-    filesystem::path dir(_cwd + '/' + _folder_name);
+    boost::filesystem::path dir(_cwd + '/' + _folder_name);
     
-    if (!filesystem::exists(dir)) {
-      filesystem::create_directory(dir);
+    if (!boost::filesystem::exists(dir)) {
+      boost::filesystem::create_directory(dir);
     }
-    _log_out.open(_cwd + '/' + _folder_name + '/' + "log.txt", ofstream::out |
+    _log_out.open(_cwd + '/' + _folder_name + '/' + "realsense.log",
+                  ofstream::out |
                   ofstream::trunc);
     
     pthread_mutex_init(&_queue_lock, nullptr);
@@ -41,16 +41,21 @@ namespace fork_logger {
   
   string ForkLogger::get_timestamp(string format) {
     time_t curr_time = time(&curr_time);
-      
+    string date_time;
     struct tm local_time;
     localtime_r(&curr_time, &local_time);
     char time_array[25];
-    
-    if (format == "time")
-      strftime(time_array, 50, "%Y-%m-%d_%H:%M:%S", &local_time);
-    else
+    string date;
+    if (format == "time") {
+//      strftime(time_array, 50, "%Y-%m-%d_%H:%M:%S", &local_time);
+      boost::posix_time::ptime tod =
+      boost::posix_time::microsec_clock::local_time();
+      date_time = boost::posix_time::to_iso_extended_string(tod);
+    }
+    else {
       strftime(time_array, 50, "%Y-%m-%d", &local_time);
-    string date_time(time_array);
+      date_time = string(time_array);
+    }
     
     return date_time;
   }
@@ -69,6 +74,7 @@ namespace fork_logger {
   }
   
   void ForkLogger::process_queue() {
+    int prev_count = 0;
     // TODO: terminate this loop correctly
     while (true) {
       pthread_mutex_lock(&_queue_lock);
@@ -83,8 +89,10 @@ namespace fork_logger {
       int count = get<1>(info);
       string timestamp = get<2>(info);
       
-      _log_out << timestamp << ' ' << count << endl;
+      if (count != prev_count)
+        _log_out << timestamp << ' ' << count << endl;
       imwrite(_cwd + '/' + _folder_name + '/' + timestamp + ".png", img);
+      prev_count = count;
     }
     _log_out.close();
   }

@@ -1837,11 +1837,12 @@ void *process_frames(void *)
         }
         
         if (store_frame) {
-          logger->log_data(image_with_circles, occupancy, to_string(frame_no));
+          logger->log_data(image_with_circles, occupancy,
+                           logger->get_timestamp("time"));
         }
         store_frame = false;
       
-        if(occupancy < 0)
+        if (occupancy < 0)
             occupancy = 0;
         
         // Calculating average number of frames per second
