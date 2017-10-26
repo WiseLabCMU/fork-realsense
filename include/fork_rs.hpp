@@ -38,7 +38,7 @@
 ///////////////////////General Parameters/////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////
 bool match_by_velocity = false;
-bool count_opposite_way = false;
+bool count_opposite_way = true;
 bool display_occupancy = true;
 bool enable_threading = false;
 bool print_debug_info = false;

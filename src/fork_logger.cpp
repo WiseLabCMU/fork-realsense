@@ -15,9 +15,8 @@ using namespace std;
 namespace fork_logger {
 
   ForkLogger::ForkLogger(string folder_name){
-//    char dir_buff[FILENAME_MAX];
-//    _cwd = getcwd(dir_buff, FILENAME_MAX);
-    _cwd = "/Users/PapaYaw/Documents/Bosch_Research/fork-realsense";
+    char dir_buff[FILENAME_MAX];
+    _cwd = getcwd(dir_buff, FILENAME_MAX);
     _init_time = get_timestamp("time");
     _init_date = get_timestamp("date");
     
@@ -29,7 +28,6 @@ namespace fork_logger {
     filesystem::path dir(_cwd + '/' + _folder_name);
     
     if (!filesystem::exists(dir)) {
-      cout << "path doesn't exist";
       filesystem::create_directory(dir);
     }
     _log_out.open(_cwd + '/' + _folder_name + '/' + "log.txt", ofstream::out |
@@ -86,7 +84,6 @@ namespace fork_logger {
       string timestamp = get<2>(info);
       
       _log_out << timestamp << ' ' << count << endl;
-      _log_out.flush();
       imwrite(_cwd + '/' + _folder_name + '/' + timestamp + ".png", img);
     }
     _log_out.close();

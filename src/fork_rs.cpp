@@ -1605,7 +1605,7 @@ int main(int argc, char** argv) {
   
     string filename = "test";
     if (log_data) {
-       logger = new ForkLogger(filename);
+       logger = new ForkLogger();
     }
 //    pthread_create(&threads[0], NULL, &frame_capture_thread, NULL);
     pthread_create(&threads[1], nullptr, &process_frames, nullptr);
@@ -1825,7 +1825,7 @@ void *process_frames(void *)
         //update the estimate of occupancy
         estimate_occupancy(people_image_no, 1); //it will use people_info and update
         cout << "PEOPLE inside: " << occupancy << endl;
-        
+      
         //display occupancy info
         if (display_occupancy) {
             pthread_mutex_lock(&im_lock);
@@ -1837,7 +1837,7 @@ void *process_frames(void *)
         }
         
         if (store_frame) {
-            logger->log_data(image_with_circles, occupancy, timestamp);
+          logger->log_data(image_with_circles, occupancy, to_string(frame_no));
         }
         store_frame = false;
       
