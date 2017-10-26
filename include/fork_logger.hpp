@@ -9,9 +9,13 @@
 #ifndef fork_logger_hpp
 #define fork_logger_hpp
 
+// TODO: link -lboost_filesystem -lboost_system
+
+#include <boost/filesystem.hpp>
 #include <cstdio>
 #include <ctime>
 #include <fstream>
+#include <iostream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <pthread.h>
@@ -19,6 +23,7 @@
 #include <stdio.h>
 #include <string>
 #include <tuple>
+#include <unistd.h>
 
 namespace fork_logger {
   
@@ -27,13 +32,16 @@ namespace fork_logger {
   
   class ForkLogger {
   public:
-    ForkLogger(cv::string filename);
-    std::string get_timestamp();
+    ForkLogger(cv::string folder_name = "none");
+    std::string get_timestamp(std::string format);
     // accessor for client
     // enqueues image, occupancy count, and timestamp
-    void log_data(std::tuple<cv::Mat, int, std::string> info);
+    void log_data(cv::Mat img, int count, std::string timestamp);
   private:
-    cv::string _filename;
+    std::string _cwd;
+    std::string _folder_name; // where counts are logged
+    std::string _init_date; // when logger started
+    std::string _init_time; // when logger initialized
     pthread_t _log_thread;
     pthread_mutex_t _queue_lock;
     pthread_cond_t _queue_cond;

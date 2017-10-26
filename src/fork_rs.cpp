@@ -10,11 +10,7 @@
 
 using namespace cv;
 using namespace std;
-
-// for logging motion-triggered counts
-pthread_mutex_t log_lock;
-pthread_cond_t log_cond;
-
+using namespace fork_logger;
 // for unprocessed frames
 pthread_mutex_t frame_lock;
 pthread_cond_t frame_cond;
@@ -30,7 +26,8 @@ pthread_cond_t poly_cond;
 pthread_t threads[NUM_THREADS];
 int thread_ids[NUM_THREADS];
 
-queue<Mat> *people_image_queue = new queue<Mat>; // queue for raw frames
+// queue for raw frames
+queue<tuple<Mat, string>> *people_image_queue = new queue<tuple<Mat, string>>;
 // raw frames filtered by max and min heights
 queue<Mat> *filtered_image_queue = new queue<Mat>;
 // frames used to display occupancy
@@ -41,8 +38,8 @@ queue<vector<struct person_info>> *past_people_queue = new queue<vector<struct p
 queue<int> past_people_count;
 
 rs::device *dev; // depth sensor
-
-int total_people_in_the_room;
+ForkLogger *logger;
+int occupancy;
 int frame_height;
 int frame_width;
 int image_no;
@@ -578,17 +575,17 @@ void estimate_occupancy(int frame_no, int offset)
             if(start_state == 1 && next_state == -1) //he entered into the room
             {
                 if(!count_opposite_way)
-                    total_people_in_the_room++, in_now++;
+                    occupancy++, in_now++;
                 else
-                    total_people_in_the_room--, out_now++;
+                    occupancy--, out_now++;
                 
             }
             if(start_state == -1 && next_state == 1) //he left the room
             {
                 if(!count_opposite_way)
-                    total_people_in_the_room--, out_now++;
+                    occupancy--, out_now++;
                 else
-                    total_people_in_the_room++, in_now++;
+                    occupancy++, in_now++;
             }
         }
     }
@@ -1062,6 +1059,8 @@ bool update_centers(Mat src, vector<Point2f> &current_center, vector<float> &cur
             }
         }
     }
+    if (center.size())
+        store_frame = true;
     return is_updated;
 }
 
@@ -1603,10 +1602,10 @@ int main(int argc, char** argv) {
     
     pthread_mutex_init(&poly_lock, nullptr);
     pthread_cond_init(&poly_cond, nullptr);
-    
+  
+    string filename = "test";
     if (log_data) {
-        pthread_mutex_init(&log_lock, nullptr);
-        pthread_cond_init(&log_cond, nullptr);
+       logger = new ForkLogger(filename);
     }
 //    pthread_create(&threads[0], NULL, &frame_capture_thread, NULL);
     pthread_create(&threads[1], nullptr, &process_frames, nullptr);
@@ -1616,7 +1615,7 @@ int main(int argc, char** argv) {
         exit(0);
     }
     
-//    if (use_realsense) {
+    if (use_realsense) {
         rs::context handle; // manages all connected realsense devices
         
         if(!handle.get_device_count())
@@ -1643,53 +1642,104 @@ int main(int argc, char** argv) {
         frame_width = dev->get_stream_width(rs::stream::depth);
         
         uint32_t frame_no = 0;
-//    }
     
-    while (!(done_processing && im_queue->empty())) {
-        dev->wait_for_frames();
-        const void *depth_frame = dev->get_frame_data(rs::stream::depth);
-        
-        if (decrease_fps) {
-            if (frame_no++ % fps_divisor)
-                continue;
-        }
-        Mat people_image = Mat(frame_height, frame_width, CV_16U, (void *)depth_frame);
-        Mat filtered_image = filter_based_on_max_depth(people_image);
-        
-        pthread_mutex_lock(&frame_lock);
-        people_image_queue->push(people_image);
-        filtered_image_queue->push(people_image);
-        pthread_cond_signal(&frame_cond);
-        pthread_mutex_unlock(&frame_lock);
-
-        
-        pthread_mutex_lock(&im_lock);
-        
-        while (im_queue->empty()) {
-            pthread_cond_wait(&im_cond, &im_lock);
-        }
-        Mat img = im_queue->front();
-        vector<struct person_info> temp_people = past_people_queue->front();
-        int past_count = past_people_count.front();
-
-        past_people_queue->pop();
-        im_queue->pop();
-        past_people_count.pop();
-
-        pthread_mutex_unlock(&im_lock);
-        
-        display_occupancy_info(img, temp_people, past_count);
-        cvWaitKey(1);
-        if (display_polys)
-            if (!poly_queue->empty()) {
-                imshow("polys", poly_queue->front());
-                poly_queue->pop();
+        while (!(done_processing && im_queue->empty())) {
+            dev->wait_for_frames();
+            const void *depth_frame = dev->get_frame_data(rs::stream::depth);
+            string timestamp = logger->get_timestamp("time");
+            if (decrease_fps) {
+                if (frame_no++ % fps_divisor)
+                    continue;
             }
-        
+            Mat people_image = Mat(frame_height, frame_width, CV_16U, (void *)depth_frame);
+            Mat filtered_image = filter_based_on_max_depth(people_image);
+            
+            pthread_mutex_lock(&frame_lock);
+            people_image_queue->push(make_tuple(people_image, timestamp));
+            filtered_image_queue->push(people_image);
+            pthread_cond_signal(&frame_cond);
+            pthread_mutex_unlock(&frame_lock);
+
+            
+            pthread_mutex_lock(&im_lock);
+            
+            while (im_queue->empty()) {
+                pthread_cond_wait(&im_cond, &im_lock);
+            }
+            Mat img = im_queue->front();
+            vector<struct person_info> temp_people = past_people_queue->front();
+            int past_count = past_people_count.front();
+
+            past_people_queue->pop();
+            im_queue->pop();
+            past_people_count.pop();
+
+            pthread_mutex_unlock(&im_lock);
+            
+            display_occupancy_info(img, temp_people, past_count);
+            cvWaitKey(1);
+            if (display_polys)
+                if (!poly_queue->empty()) {
+                    imshow("polys", poly_queue->front());
+                    poly_queue->pop();
+                }
+        }
     }
+        else {
+            uint32_t frame_no = 0;
+            for (int i = startFrame; i <= endFrame; i++) {
+                if (decrease_fps) {
+                    if (i % fps_divisor)
+                        continue;
+                }
+                char image_loc_people[256];
+                sprintf(image_loc_people, IMG_LOC, i);
+    
+                if (decrease_fps) {
+                    if (frame_no++ % fps_divisor)
+                        continue;
+                }
+                Mat people_image = readImage(image_loc_people, "Depth Data", false);
+                Mat filtered_image = filter_based_on_max_depth(people_image);
+                
+                string timestamp = logger->get_timestamp("time");
+                
+                pthread_mutex_lock(&frame_lock);
+                people_image_queue->push(make_tuple(people_image, timestamp));
+                filtered_image_queue->push(people_image);
+                pthread_cond_signal(&frame_cond);
+                pthread_mutex_unlock(&frame_lock);
+                
+                
+                pthread_mutex_lock(&im_lock);
+                
+                while (im_queue->empty()) {
+                    pthread_cond_wait(&im_cond, &im_lock);
+                }
+                Mat img = im_queue->front();
+                vector<struct person_info> temp_people = past_people_queue->front();
+                int past_count = past_people_count.front();
+                
+                past_people_queue->pop();
+                im_queue->pop();
+                past_people_count.pop();
+                
+                pthread_mutex_unlock(&im_lock);
+                
+                display_occupancy_info(img, temp_people, past_count);
+                cvWaitKey(1);
+                if (display_polys)
+                    if (!poly_queue->empty()) {
+                        imshow("polys", poly_queue->front());
+                        poly_queue->pop();
+                    }
+            }
+            done_capturing = true;
+        }
     exit(0);
 }
 
+// retrieves pre-captured frames and computes occupancy count
 void *process_frames(void *)
 {
     assert(total_diff_heights <= MAX_HEIGHT_LEVELS);
@@ -1730,7 +1780,11 @@ void *process_frames(void *)
             pthread_cond_wait(&frame_cond, &frame_lock);
         }
         
-        Mat people_image = people_image_queue->front();
+      
+        std::tuple<Mat, string> raw_frame_info = people_image_queue->front();
+        Mat people_image = get<0>(raw_frame_info);
+        string timestamp = get<1>(raw_frame_info);
+        
         Mat height_fixed_image = filtered_image_queue->front();
         
         people_image_queue->pop();
@@ -1768,23 +1822,27 @@ void *process_frames(void *)
         
         // Update info of people
         update_people_info(center, radius, depth); //it will update the vector: people_info
-        
         //update the estimate of occupancy
         estimate_occupancy(people_image_no, 1); //it will use people_info and update
-        cout << "PEOPLE inside: " << total_people_in_the_room << endl;
+        cout << "PEOPLE inside: " << occupancy << endl;
         
         //display occupancy info
         if (display_occupancy) {
             pthread_mutex_lock(&im_lock);
             im_queue->push(image_with_circles);
             past_people_queue->push(people_info);
-            past_people_count.push(total_people_in_the_room);
+            past_people_count.push(occupancy);
             pthread_mutex_unlock(&im_lock);
             pthread_cond_signal(&im_cond);
         }
         
-        if(total_people_in_the_room < 0)
-            total_people_in_the_room = 0;
+        if (store_frame) {
+            logger->log_data(image_with_circles, occupancy, timestamp);
+        }
+        store_frame = false;
+      
+        if(occupancy < 0)
+            occupancy = 0;
         
         // Calculating average number of frames per second
         frame_no++;
