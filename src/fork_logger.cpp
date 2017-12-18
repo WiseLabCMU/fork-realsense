@@ -13,7 +13,7 @@ using namespace std;
 
 namespace fork_logger {
 
-  ForkLogger::ForkLogger(bool stop_logger, string folder_name) {
+  ForkLogger::ForkLogger(bool *stop_logger, string folder_name) {
     char dir_buff[FILENAME_MAX];
     _cwd = getcwd(dir_buff, FILENAME_MAX);
     _init_time = get_timestamp("time");
@@ -49,7 +49,7 @@ namespace fork_logger {
     string date;
     if (format == "time") {
 //      strftime(time_array, 50, "%Y-%m-%d_%H:%M:%S", &local_time);
-      boost::posix_time::ptime tod =
+      boost::posix_time::ptime tod = \
       boost::posix_time::microsec_clock::local_time();
       date_time = boost::posix_time::to_iso_extended_string(tod);
     }
@@ -57,7 +57,6 @@ namespace fork_logger {
       strftime(time_array, 50, "%Y-%m-%d", &local_time);
       date_time = string(time_array);
     }
-    
     return date_time;
   }
   
@@ -77,10 +76,10 @@ namespace fork_logger {
   void ForkLogger::process_queue() {
     int prev_count = 0;
     // TODO: terminate this loop correctly
-    while (!(_log_queue.empty() && _stop_logger)) {
+    while (!*_stop_logger) {
       pthread_mutex_lock(&_queue_lock);
       
-      while (_log_queue.empty())
+      while (_log_queue.empty() && !*_stop_logger)
         pthread_cond_wait(&_queue_cond, &_queue_lock);
       
       std::tuple<cv::Mat, int, std::string> info = _log_queue.front();

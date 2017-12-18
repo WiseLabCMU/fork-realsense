@@ -29,7 +29,7 @@
 #define FPS_MAX_LEN 20
 #define TOTAL_BINS 300
 #define MAX_SQR 70000  //we are precomputing the square root of up to 70000
-#define NUM_THREADS 10
+#define NUM_THREADS 2
 #define MAX_HEIGHT_LEVELS 20
 
 #define FT_TO_MM(x) (x * 304.8) // converts feet to millimeters
@@ -49,7 +49,6 @@ bool store_frame = false;
 
 int fps_divisor = 6; // camera_fps / divisor;
 
-bool done_capturing = false;
 bool done_processing = false;
 bool realsense_shutdown = false;
 bool use_realsense = false;

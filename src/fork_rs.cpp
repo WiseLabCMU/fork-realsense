@@ -45,8 +45,8 @@ int frame_height;
 int frame_width;
 int image_no;
 
-bool stop_frame_capture;
-bool stop_logger = 0; 
+bool stop_capturing = false;
+bool *stop_logger = new bool;
 
 struct person_info{
   Point center[PAST_HORIZON_SIZE];
@@ -80,12 +80,14 @@ void *process_frames(void *);
 static void kill_threads() {
   cout << "exiting" << endl;
   
-  stop_frame_capture = 1;
-  stop_logger = 1;
-  dev->stop();
+  stop_capturing = 1;
+  *stop_logger = true;
+//  pthread_cond_broadcast(&(logger->_queue_cond));
+  if (dev)
+    dev->stop();
   
-  for (auto thread : threads)
-    pthread_join(thread, nullptr);
+  pthread_cond_broadcast(&frame_cond);
+  pthread_join(threads[0], nullptr);
   
   exit(0);
 }
@@ -1522,7 +1524,7 @@ static void init_camera(rs::context &handle) {
   cout << "device serial: " << dev->get_serial() << endl;
   cout << "device firmware: " << dev->get_firmware_version() << endl;
   
-  // wait for image stabilization
+  // image stabilization
   for (int i = 0; i < 30; i++){
     dev->wait_for_frames();
   }
@@ -1659,7 +1661,7 @@ static void capture_frame(uint32_t &frame_no) {
 //            pthread_cond_signal(&frame_cond);
 //            pthread_mutex_unlock(&frame_lock);
 //        }
-//        done_capturing = true;
+//        stop_capturing = true;
 //    }
 //    pthread_exit(NULL);
 //}
@@ -1667,7 +1669,7 @@ static void capture_frame(uint32_t &frame_no) {
 static void display_frame() {
   pthread_mutex_lock(&im_lock);
   
-  while (im_queue->empty())
+  while (im_queue->empty() && !stop_capturing)
     pthread_cond_wait(&im_cond, &im_lock);
   
   Mat img = im_queue->front();
@@ -1694,11 +1696,12 @@ static void display_frame() {
 // TODO: make a decrease fps func
 int main(int argc, char** argv) {
   signal(SIGINT, signal_handler);
-  
   init_threading_structs();
   
-  if (log_data)
+  if (log_data) {
     logger = new ForkLogger(stop_logger);
+    *stop_logger = false;
+  }
   
   pthread_create(&threads[0], nullptr, &process_frames, nullptr);
   
@@ -1716,24 +1719,18 @@ int main(int argc, char** argv) {
     uint32_t frame_no = 0;
     
     while (!(done_processing && im_queue->empty())) {
-      if (!stop_frame_capture)
+      if (!stop_capturing)
         capture_frame(frame_no);
       
-      if (display_occupancy)
+      if (display_occupancy && !(im_queue->empty()))
         display_frame();
     }
   }
   else {
-    uint32_t frame_no = 0;
-    
     for (int i = startFrame; i <= endFrame; i++) {
       char image_loc_people[256];
       sprintf(image_loc_people, IMG_LOC, i);
-      
-      if (decrease_fps) {
-        if (frame_no++ % fps_divisor)
-          continue;
-      }
+
       Mat people_image = readImage(image_loc_people, "Depth Data", false);
       Mat filtered_image = filter_based_on_max_depth(people_image);
       
@@ -1743,16 +1740,14 @@ int main(int argc, char** argv) {
       
       display_frame();
     }
-    done_capturing = true;
+    stop_capturing = true;
   }
   kill_threads();
 }
 
 // retrieves pre-captured frames and computes occupancy count
 void *process_frames(void *)
-{
-  assert(total_diff_heights <= MAX_HEIGHT_LEVELS);
-  
+{  
   init_CSV(); // to generate the ground truth files for precision, recall computation
   
   // Initializing parameters for Accuracy calculations
@@ -1782,13 +1777,14 @@ void *process_frames(void *)
   clock_t clock_start = clock();
   clock_t time_vals[FPS_MAX_LEN] = {0};
   
-  while (!(done_capturing && filtered_image_queue->empty())) {
+  while (!(stop_capturing && filtered_image_queue->empty())) {
     pthread_mutex_lock(&frame_lock);
     
-    while(filtered_image_queue->empty()) {
+    while(filtered_image_queue->empty() && !stop_capturing) {
       pthread_cond_wait(&frame_cond, &frame_lock);
     }
-    
+    if (people_image_queue->empty())
+      break;
     
     std::tuple<Mat, string> raw_frame_info = people_image_queue->front();
     Mat people_image = get<0>(raw_frame_info);
@@ -1845,7 +1841,7 @@ void *process_frames(void *)
       pthread_cond_signal(&im_cond);
     }
     
-    if (store_frame) {
+    if (store_frame && log_data) {
       logger->log_data(image_with_circles, occupancy,
                        logger->get_timestamp("time"));
     }
