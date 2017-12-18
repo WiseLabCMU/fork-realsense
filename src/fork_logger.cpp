@@ -13,11 +13,12 @@ using namespace std;
 
 namespace fork_logger {
 
-  ForkLogger::ForkLogger(string folder_name){
+  ForkLogger::ForkLogger(bool stop_logger, string folder_name) {
     char dir_buff[FILENAME_MAX];
     _cwd = getcwd(dir_buff, FILENAME_MAX);
     _init_time = get_timestamp("time");
     _init_date = get_timestamp("date");
+    _stop_logger = stop_logger;
     
     if (folder_name == "none")
       _folder_name = _init_time;
@@ -76,8 +77,9 @@ namespace fork_logger {
   void ForkLogger::process_queue() {
     int prev_count = 0;
     // TODO: terminate this loop correctly
-    while (true) {
+    while (!(_log_queue.empty() && _stop_logger)) {
       pthread_mutex_lock(&_queue_lock);
+      
       while (_log_queue.empty())
         pthread_cond_wait(&_queue_cond, &_queue_lock);
       

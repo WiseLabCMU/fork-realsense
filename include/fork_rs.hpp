@@ -44,7 +44,7 @@ bool enable_threading = false;
 bool print_debug_info = false;
 bool display_polys = false;
 bool decrease_fps = false;
-bool log_data = true;
+bool log_data = false;
 bool store_frame = false;
 
 int fps_divisor = 6; // camera_fps / divisor;

@@ -9,8 +9,6 @@
 #ifndef fork_logger_hpp
 #define fork_logger_hpp
 
-// TODO: link -lboost_filesystem -lboost_system
-
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem.hpp>
 #include <cstdio>
@@ -28,12 +26,11 @@
 
 namespace fork_logger {
   
-  // threaded logger to log occupancy count including the corresponding image and timestamp
-  // for the count
-  
+  // threaded logger to log occupancy count including the corresponding image
+  // and timestamp for the count
   class ForkLogger {
   public:
-    ForkLogger(cv::string folder_name = "none");
+    ForkLogger(bool stop_logger, std::string folder_name = "none");
     std::string get_timestamp(std::string format);
     // accessor for client
     // enqueues image, occupancy count, and timestamp
@@ -46,9 +43,9 @@ namespace fork_logger {
     pthread_t _log_thread;
     pthread_mutex_t _queue_lock;
     pthread_cond_t _queue_cond;
-    std::ofstream _log_out;
+    std::ofstream _log_out; // log file
     std::queue<std::tuple<cv::Mat, int, std::string>> _log_queue;
-    
+    bool _stop_logger;
     static void * start_thread(void *This);
     // unpacks data to be logged and saves items to disk
     void process_queue();
